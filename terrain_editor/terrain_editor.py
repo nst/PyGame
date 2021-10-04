@@ -252,7 +252,7 @@ def draw(screen, w: World):
     text = font.render(s, False, (0,255,0))
     screen.blit(text, [50, 300])
 
-    s = "Forest: %d" % w.nb_buildings()
+    s = "Buildings: %d" % w.nb_buildings()
     text = font.render(s, False, (0,255,0))
     screen.blit(text, [50, 330])
 
