@@ -125,9 +125,9 @@ class World(object):
 
         self.create_blocks()
 
-        self.label_1 = Label(txt="", location=(50,300), size=(400,40), font=self.font)
-        self.label_2 = Label(txt="", location=(50,330), size=(400,40), font=self.font)
-        self.label_3 = Label(txt="", location=(50,360), size=(400,40), font=self.font)
+        self.label_1 = Label(txt="", location=(50,300), size=(600,40), font=self.font)
+        self.label_2 = Label(txt="", location=(50,330), size=(600,40), font=self.font)
+        self.label_3 = Label(txt="", location=(50,360), size=(600,40), font=self.font)
 
     def nb_buildings(self):
         count = 0
@@ -255,6 +255,38 @@ class World(object):
         b = self.m[x_][y_]
         self.set_selection(b)
         return b
+    
+    def draw(self, screen):
+        print("-- draw")
+
+        self.blocks.update()
+        rects = self.blocks.draw(screen)
+        pygame.display.update(rects)
+
+        if self.text_is_dirty == 1:
+            sb = self.selected_block
+            self.label_1.txt = "No selection" if not sb else "Selected: %d,%d" % (sb.cell_x, sb.cell_y)
+            self.label_1.update()
+            screen.blit(self.label_1.surface, self.label_1.location)
+
+            self.label_2.txt = "Buildings: %d" % self.nb_buildings()
+            self.label_2.update()
+            screen.blit(self.label_2.surface, self.label_2.location)
+
+            self.label_3.txt = "Use mouse, or arrows and space bar"
+            self.label_3.update()
+            screen.blit(self.label_3.surface, self.label_3.location)
+
+            self.text_is_dirty = 0
+
+        for t in self.tools:
+            t.is_highlighted = t.value == self.tool_value
+
+        self.tools.update()
+        rects = self.tools.draw(screen)
+        pygame.display.update(rects)
+        
+        pygame.display.flip()
 
 class Label():
 
@@ -278,43 +310,6 @@ class Label():
         self.txt_surf = self.font.render(self.txt, 1, self.fg)
         self.surface.blit(self.txt_surf, (0,0))
 
-def draw(screen, w: World):
-
-    print("-- draw")
-
-    if w.text_is_dirty == 1:
-        sb = w.selected_block
-        s = "No selection" if not sb else "Selected: %d,%d" % (sb.cell_x, sb.cell_y)
-        w.label_1.txt = s
-        w.label_1.update()
-        screen.blit(w.label_1.surface, w.label_1.location)
-
-        s = "Buildings: %d" % w.nb_buildings()
-        w.label_2.txt = s
-        w.label_2.update()
-        screen.blit(w.label_2.surface, w.label_2.location)
-
-        s = "Use mouse, or arrows and space bar"
-        w.label_3.txt = s
-        w.label_3.update()
-        screen.blit(w.label_3.surface, w.label_3.location)
-
-        w.text_is_dirty = 0
-
-    w.blocks.update()
-
-    rects = w.blocks.draw(screen)
-    pygame.display.update(rects)
-
-    for t in w.tools:
-        t.is_highlighted = t.value == w.tool_value
-
-    w.tools.update()
-    w.tools.draw(screen)
-    
-    pygame.display.update()
-    pygame.display.flip()
-
 def main():
     pygame.init()
     
@@ -332,14 +327,14 @@ def main():
     w = World()
     w.blocks.clear(screen, background)
 
-    draw(screen, w)
+    w.draw(screen)
 
     while True:
         
         clock.tick(30)
 
         for event in pygame.event.get():
-
+            
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
@@ -350,19 +345,19 @@ def main():
                 if event.key == pygame.K_LEFT:
                     print("    left")
                     w.select_neighbour(-1,0)
-                    draw(screen, w)
+                    w.draw(screen)
                 elif event.key == pygame.K_RIGHT:
                     print("    right")
                     w.select_neighbour(1,0)
-                    draw(screen, w)
+                    w.draw(screen)
                 elif event.key == pygame.K_UP:
                     print("    up")
                     w.select_neighbour(0,1)
-                    draw(screen, w)
+                    w.draw(screen)
                 elif event.key == pygame.K_DOWN:
                     print("    down")
                     w.select_neighbour(0,-1)
-                    draw(screen, w)
+                    w.draw(screen)
                 elif event.key == pygame.K_PAGEUP:
                     print("    page up")
                 elif event.key == pygame.K_PAGEDOWN:
@@ -372,7 +367,7 @@ def main():
                     b = w.selected_block
                     if b:
                         b.value = w.tool_value
-                        draw(screen, w)
+                        w.draw(screen)
                 elif event.key == 115: # s
                     print("-- screenshot")
                     pygame.image.save(screen, "screenshot.png")
@@ -394,11 +389,13 @@ def main():
                 if s:
                     w.set_selection(s)
                     s.value = w.tool_value
-                    draw(screen, w)
+                    w.text_is_dirty = 1
+                    w.draw(screen)
                 else:
                     tool_has_changed = w.update_tools_with_hit(pos)
                     if tool_has_changed:
-                        draw(screen, w)
+                        w.text_is_dirty = 1
+                        w.draw(screen)
             
             elif event.type == pygame.MOUSEMOTION:
                 pos = pygame.mouse.get_pos()
@@ -421,7 +418,7 @@ def main():
                     must_draw = True
 
                 if must_draw:
-                    draw(screen, w)            
+                    w.draw(screen)            
 
 if __name__ == "__main__":
     
