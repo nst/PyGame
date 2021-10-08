@@ -7,6 +7,7 @@ import pygame
 import sys
 
 BLUE = (0,0,255)
+GREEN = (0,255,0)
 
 IMG_FOREST = pygame.image.load("tiles/forest.png")
 IMG_FOREST_ = pygame.image.load("tiles/forest_s.png")
@@ -15,10 +16,10 @@ IMG_TERRAIN_ = pygame.image.load("tiles/terrain_s.png")
 IMG_BUILDING = pygame.image.load("tiles/building.png")
 IMG_BUILDING_ = pygame.image.load("tiles/building_s.png")
 
-class Block(pygame.sprite.Sprite):
+class Block(pygame.sprite.DirtySprite):
 
     def __init__(self, x, y, v):
-        pygame.sprite.Sprite.__init__(self)
+        pygame.sprite.DirtySprite.__init__(self)
 
         self.cell_x = x
         self.cell_y = y
@@ -34,7 +35,6 @@ class Block(pygame.sprite.Sprite):
         self.image_building_ = IMG_BUILDING_
 
         self._is_highlighted = False
-        self._image_is_dirty = True
 
         self.update()
         self.rect = self.image.get_rect()
@@ -47,7 +47,7 @@ class Block(pygame.sprite.Sprite):
     def value(self, b: bool):
         if b != self._value:
             self._value = b 
-            self._image_is_dirty = True
+            self.dirty = 1
 
     @property
     def is_highlighted(self):
@@ -57,7 +57,7 @@ class Block(pygame.sprite.Sprite):
     def is_highlighted(self, b: bool):
         if b != self._is_highlighted:
             self._is_highlighted = b 
-            self._image_is_dirty = True
+            self.dirty = 1
 
     def __str__ (self):
         return 'Block(cell_x=' + str(self.cell_x) + ' , cell_y=' + str(self.cell_y) + ')'
@@ -67,7 +67,9 @@ class Block(pygame.sprite.Sprite):
     
     def update(self):
         # prepare to draw
-        if not self._image_is_dirty:
+
+
+        if self.dirty == 0:
             return
 
         print("--", self, ".update()")
@@ -85,7 +87,7 @@ class Block(pygame.sprite.Sprite):
         self.image = self.image_highlighted if self._is_highlighted else self.image_standard
         self.mask = pygame.mask.from_surface(self.image)
 
-        self._image_is_dirty = False
+        self.dirty = 1
 
 class World(object):
 
@@ -103,6 +105,9 @@ class World(object):
         self.X = len(self.model)
         self.Y = len(self.model[0])
 
+        self.font = pygame.font.SysFont('Courier New', 24, True, False)
+        self.text_is_dirty = 1
+
         self.m = []
         for x in range(self.X):
             l = []
@@ -119,6 +124,10 @@ class World(object):
         self.create_tools()
 
         self.create_blocks()
+
+        self.label_1 = Label(txt="", location=(50,300), size=(400,40), font=self.font)
+        self.label_2 = Label(txt="", location=(50,330), size=(400,40), font=self.font)
+        self.label_3 = Label(txt="", location=(50,360), size=(400,40), font=self.font)
 
     def nb_buildings(self):
         count = 0
@@ -143,17 +152,20 @@ class World(object):
         self.selected_block = b
         self.selected_block.is_highlighted = True
 
+        self.text_is_dirty = 1
         #print("-- selection is now", b.cell_x, b.cell_y)
 
         return True
     
     def create_blocks(self):
 
-        self.blocks = pygame.sprite.OrderedUpdates()
+        #self.blocks = pygame.sprite.LayeredDirty()
 
         TW, TH = 64, 64
         TW2, TH2 = TW/2, TH/2
     
+        l = []
+
         # start adding from the back
         for x in range(self.X)[::-1]:
             for y in range(self.Y)[::-1]:
@@ -174,7 +186,10 @@ class World(object):
 
                 #print("SET", x, y, "->", b)
 
-                self.blocks.add(b)
+                l.append(b)
+        
+        t = tuple(l)
+        self.blocks = pygame.sprite.LayeredDirty(t)
 
     def create_tools(self):
 
@@ -198,6 +213,8 @@ class World(object):
             return
         
         b.value = self.tool_value
+
+        self.text_is_dirty = 1
 
     def sprite_for_pos(self, pos):
 
@@ -239,36 +256,62 @@ class World(object):
         self.set_selection(b)
         return b
 
+class Label():
+
+    def __init__(self, txt, location, size, font, bg=BLUE, fg=GREEN):
+        self.bg = bg  
+        self.fg = fg
+        self.size = size
+        self.font = font
+        self.location = location
+
+        self.font = font
+        self.txt = txt
+        self.txt_surf = self.font.render(self.txt, 1, self.fg)
+        #self.txt_rect = self.txt_surf.get_rect(center=[s/2 for s in self.size])
+
+        self.surface = pygame.surface.Surface(size)
+        self.rect = self.surface.get_rect(topleft=location) 
+
+    def update(self):
+        self.surface.fill(self.bg)
+        self.txt_surf = self.font.render(self.txt, 1, self.fg)
+        self.surface.blit(self.txt_surf, (0,0))
+
 def draw(screen, w: World):
 
     print("-- draw")
 
-    screen.fill(BLUE)
+    if w.text_is_dirty == 1:
+        sb = w.selected_block
+        s = "No selection" if not sb else "Selected: %d,%d" % (sb.cell_x, sb.cell_y)
+        w.label_1.txt = s
+        w.label_1.update()
+        screen.blit(w.label_1.surface, w.label_1.location)
 
-    font = pygame.font.SysFont('Courier New', 24, True, False)
+        s = "Buildings: %d" % w.nb_buildings()
+        w.label_2.txt = s
+        w.label_2.update()
+        screen.blit(w.label_2.surface, w.label_2.location)
 
-    sb = w.selected_block
-    s = "No selection" if not sb else "Selected: %d,%d" % (sb.cell_x, sb.cell_y)
-    text = font.render(s, False, (0,255,0))
-    screen.blit(text, [50, 300])
+        s = "Use mouse, or arrows and space bar"
+        w.label_3.txt = s
+        w.label_3.update()
+        screen.blit(w.label_3.surface, w.label_3.location)
 
-    s = "Buildings: %d" % w.nb_buildings()
-    text = font.render(s, False, (0,255,0))
-    screen.blit(text, [50, 330])
-
-    s = "Use mouse, or arrows and space bar"
-    text = font.render(s, False, (0,255,0))
-    screen.blit(text, [50, 360])
+        w.text_is_dirty = 0
 
     w.blocks.update()
-    w.blocks.draw(screen)
+
+    rects = w.blocks.draw(screen)
+    pygame.display.update(rects)
 
     for t in w.tools:
         t.is_highlighted = t.value == w.tool_value
 
     w.tools.update()
     w.tools.draw(screen)
-
+    
     pygame.display.update()
     pygame.display.flip()
 
@@ -278,10 +321,17 @@ def main():
     window_size = (640, 480)
     screen = pygame.display.set_mode(window_size)
 
+    background = pygame.Surface(screen.get_size())
+    background = background.convert()
+    background.fill(BLUE)
+
     pygame.display.set_caption("Basic Terrain Editor")
+
     clock = pygame.time.Clock()
 
     w = World()
+    w.blocks.clear(screen, background)
+
     draw(screen, w)
 
     while True:
